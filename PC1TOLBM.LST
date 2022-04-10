@@ -1,0 +1,55 @@
+'
+' Pc1TOLBM
+'
+DIM reg%(15)
+LET iff$=SPACE$(5000)
+BLOAD "\bat_ii\makedyno\iff.prg",V:iff$
+FILESELECT "\*.pc1","",n$
+n2$=LEFT$(n$,LEN(n$)-4)+".lbm"
+PRINT n$
+PRINT n2$
+p$=SPACE$(32200)
+BLOAD n$,V:p$
+i$=p$
+reg%(8)=V:i$+34
+reg%(9)=V:p$+34
+RCALL V:iff$,reg%()
+p#=0
+FOR y#=0 TO 199
+  PRINT AT(10,10),INT(y#/2);" %  "
+  FOR x#=0 TO 159 STEP 8
+    CARD{V:i$+116+x#/4+y#*160}=CARD{V:p$+34+x#+y#*160}
+    CARD{V:i$+116+x#/4+y#*160+40}=CARD{V:p$+34+x#+y#*160+2}
+    CARD{V:i$+116+x#/4+y#*160+80}=CARD{V:p$+34+x#+y#*160+4}
+    CARD{V:i$+116+x#/4+y#*160+120}=CARD{V:p$+34+x#+y#*160+6}
+  NEXT x#
+NEXT y#
+RESTORE header
+'
+i#=0
+DO
+  READ b$
+  EXIT IF b$="FIN"
+  CARD{V:i$+i#}=VAL("&"+b$)
+  i#=i#+2
+LOOP
+'
+i#=48
+FOR z#=0 TO 15
+  c#=CARD{V:p$+2+z#*2}
+  BYTE{V:i$+i#}=(c# AND &H700)/16*2
+  INC i#
+  BYTE{V:i$+i#}=(c# AND &H70)*2
+  INC i#
+  BYTE{V:i$+i#}=(c# AND 7)*16*2
+  INC i#
+NEXT z#
+'
+BSAVE n2$,V:i$,32116
+'
+header:
+DATA 464F,524D,0,7D6C,494C,424D,424D,4844,0,14,140,C8,0,0,400
+DATA 0,0,A0B,140,C8,434D,4150,0,30,0,70,7070,5060,6030,4040,2030
+DATA 3020,2010,1010,10,2020,7060,5050,4030,3020,1020,1000,4020
+DATA 50,3010,4000,30,3020,4341,4D47,0,4,0,4000,424F,4459,0,7D00
+DATA FIN

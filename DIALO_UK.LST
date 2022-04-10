@@ -1,0 +1,233 @@
+DEFINT "a-z"
+DIM dico$(2000),morceau$(100,2000),morceau%(100,2000),offsetdico%(2000)
+DIM pp$(300),ps$(300)
+'
+nophrase%=0
+'
+OPEN "i",#1,"\bat_ii\interpel.uk"
+WHILE NOT (EOF(#1))
+  LINE INPUT #1,a$
+  IF LEFT$(a$,2)<>"/*" AND a$<>""
+    traite(a$)
+  ENDIF
+WEND
+morceau$(0,nophrase%)=""
+compiledico
+compilepp
+compilepp2
+compileps
+compileps2
+CLOSE #1
+PRINT LEN(compiledico$)
+PRINT LEN(phrasepp$)
+PRINT LEN(phraseps$)
+BSAVE "dicoUK",V:compiledico$,LEN(compiledico$)
+BSAVE "phrapUK",V:phrasepp$,LEN(phrasepp$)
+BSAVE "phrasUK",V:phraseps$,LEN(phraseps$)
+make_dc("dicoUK")
+make_dc("phrapUK")
+make_dc("phrasUK")
+'
+> PROCEDURE traite(a$)
+  PRINT a$
+  decoupe(a$)
+  numerique
+  INC nophrase%
+RETURN
+> PROCEDURE numerique
+  LOCAL index%,a%
+  index%=0
+  DO
+    EXIT IF morceau$(index%,nophrase%)=""
+    a%=BYTE{V:morceau$(index%,nophrase%)}
+    IF a%=ASC("$") OR a%=ASC("&") OR a%=ASC("#") OR a%=ASC("@") OR a%=ASC("*")
+      morceau%(index%,nophrase%)=VAL(MID$(morceau$(index%,nophrase%),2,4))
+    ELSE
+      index2%=0
+      fin%=0
+      DO
+        IF dico$(index2%)=""
+          fin%=1
+        ENDIF
+        IF dico$(index2%)=morceau$(index%,nophrase%)
+          fin%=2
+        ENDIF
+        EXIT IF fin%<>0
+        INC index2%
+      LOOP
+      morceau%(index%,nophrase%)=index2%
+      IF fin%=1
+        dico$(index2%)=morceau$(index%,nophrase%)
+      ENDIF
+    ENDIF
+    INC index%
+  LOOP
+RETURN
+PROCEDURE decoupe(a$)
+  LOCAL i%,index%,offset%,special!,a%
+  FOR i%=0 TO 100
+    morceau$(i%,nophrase%)=""
+  NEXT i%
+  index%=-1
+  offset%=0
+  special!=0
+  DO
+  aa:
+    a%=BYTE{V:a$+offset%}
+    INC offset%
+    EXIT IF a%=ASC("/")
+    IF a%=ASC("$") OR a%=ASC("&") OR a%=ASC("#") OR a%=ASC("@") OR a%=ASC("*")
+      INC index%
+      morceau$(index%,nophrase%)=MID$(a$,offset%,5)
+      ADD offset%,4
+      special!=-1
+      GOTO aa
+    ELSE
+      IF special! AND a%<>ASC(" ")
+        INC index%
+      ENDIF
+      special!=0
+    ENDIF
+    IF a%=ASC(" ")
+      INC index%
+      GOTO aa
+    ENDIF
+    morceau$(index%,nophrase%)=morceau$(index%,nophrase%)+CHR$(a%)
+  LOOP
+  morceau$(index%+1,nophrase%)=""
+RETURN
+> PROCEDURE compiledico
+  LOCAL index%
+  compiledico$=""
+  index%=0
+  DO
+    EXIT IF dico$(index%)=""
+    offsetdico%(index%)=LEN(compiledico$)
+    compiledico$=compiledico$+dico$(index%)+CHR$(0)
+    INC index%
+  LOOP
+RETURN
+> PROCEDURE compilepp
+  FOR i%=0 TO 300
+    pp$(i%)=""
+  NEXT i%
+  phrase%=0
+  indexpp%=0
+  DO
+    index%=0
+    EXIT IF morceau$(0,phrase%)=""
+    IF LEFT$(morceau$(0,phrase%),1)="$"
+      sujet%=morceau%(0,phrase%)
+      IF LEFT$(morceau$(1,phrase%),1)="&"
+        condition%=morceau%(1,phrase%)
+        index%=2
+      ELSE
+        condition%=0
+        index%=1
+      ENDIF
+      pp$(indexpp%)=MKI$(sujet%)+MKI$(condition%)
+      DO
+        EXIT IF morceau$(index%,phrase%)=""
+        offset%=offsetdico%(morceau%(index%,phrase%))
+        a$=LEFT$(morceau$(index%+1,phrase%),1)
+        IF a$="*" OR a$="@"
+          INC index%
+          code%=morceau%(index%,phrase%)
+          IF a$="@"
+            ADD code%,2^15
+          ENDIF
+        ELSE
+          code%=0
+        ENDIF
+        INC index%
+        pp$(indexpp%)=pp$(indexpp%)+MKI$(offset%)+MKI$(code%)
+      LOOP
+      pp$(indexpp%)=pp$(indexpp%)+MKI$(-1)
+      INC indexpp%
+    ENDIF
+    INC phrase%
+  LOOP
+RETURN
+> PROCEDURE compileps
+  FOR i%=0 TO 300
+    ps$(i%)=""
+  NEXT i%
+  phrase%=0
+  DO
+    index%=0
+    EXIT IF morceau$(0,phrase%)=""
+    IF LEFT$(morceau$(0,phrase%),1)="#"
+      indexps%=morceau%(0,phrase%)
+      INC index%
+      DO
+        EXIT IF morceau$(index%,phrase%)=""
+        offset%=offsetdico%(morceau%(index%,phrase%))
+        a$=LEFT$(morceau$(index%+1,phrase%),1)
+        IF a$="*" OR a$="@"
+          INC index%
+          code%=morceau%(index%,phrase%)
+          IF a$="@"
+            ADD code%,2^15
+          ENDIF
+        ELSE
+          code%=0
+        ENDIF
+        INC index%
+        ps$(indexps%)=ps$(indexps%)+MKI$(offset%)+MKI$(code%)
+      LOOP
+      ps$(indexps%)=ps$(indexps%)+MKI$(-1)
+      INC indexps%
+    ENDIF
+    INC phrase%
+  LOOP
+RETURN
+> PROCEDURE compilepp2
+  index%=0
+  phrasepp$=""
+  DO
+    EXIT IF pp$(index%)=""
+    phrasepp$=phrasepp$+MKI$(LEN(pp$(index%))+2)+pp$(index%)
+    INC index%
+  LOOP
+  phrasepp$=phrasepp$+MKI$(-1)
+RETURN
+> PROCEDURE compileps2
+  phraseps$=""
+  FOR i%=300 TO 0 STEP -1
+    EXIT IF ps$(i%)<>""
+  NEXT i%
+  indexmax%=i%
+  FOR i%=0 TO indexmax%
+    phraseps$=phraseps$+MKI$(LEN(ps$(i%))+2)+ps$(i%)
+  NEXT i%
+  phraseps$=phraseps$+MKI$(-1)
+RETURN
+> PROCEDURE make_dc(n$)
+  IF n$<>""
+    OPEN "i",#1,n$
+    taille%=LOF(#1)
+    a$=SPACE$(taille%)
+    BGET #1,VARPTR(a$),taille%
+    CLOSE #1
+    n2$=n$+".dc"
+    n2$=LEFT$(n2$,RINSTR(n2$,"."))+"dc"
+    PRINT n2$
+    OPEN "o",#1,n2$
+    l$="dc.w "
+    FOR i%=0 TO taille%-1 STEP 2
+      l$=l$+"$"+HEX$(DPEEK(i%+VARPTR(a$)))+","
+      IF LEN(l$)>60
+        l$=LEFT$(l$,LEN(l$)-1)
+        PRINT #1,l$
+        PRINT l$
+        l$="dc.w "
+      ENDIF
+    NEXT i%
+    IF l$<>"dc.w "
+      l$=LEFT$(l$,LEN(l$)-1)
+      PRINT #1,l$
+      PRINT l$
+    ENDIF
+    CLOSE #1
+  ENDIF
+RETURN

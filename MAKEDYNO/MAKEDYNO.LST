@@ -1,0 +1,2163 @@
+KEYDEF 1,"bii_animstatique$"
+' MAKEDYNO V2.52
+'
+' bii_nom$                     nom du fichier
+' bii_entete$                  bloc d'en-tete
+'
+' bii_donneesimage             adresse du buffer de l'image brut
+'   bii_ditaille               taille de bii_donneesimage
+'
+' bii_di_noremap               bloc de l'image avec couleurs en vrac
+'   bii_di_notaille
+'
+' bii_changementforme$         bloc de changement de forme
+' bii_premierplan$             bloc de premier plan
+' bii_animstatique$            bloc d'animations statiques
+' bii_animdyn$                 bloc d'animation dynamique
+' bii_remap$                   bloc palette pour remap
+'
+DEFINT "a-z"
+DIM reg%(15),codeanim$(255),di%(17000),divga%(17000),dicpt%(17000),di_no%(17000),virtuel%(32000/4),buffer%(17000)
+DIM buffer2%(17000),vga%(17000)
+bii_donneesimage%=V:di%(0)
+bii_donneesimagevga%=V:divga%(0)
+bii_donneesimagecpt%=V:dicpt%(0)
+bii_di_noremap%=V:di_no%(0)
+virtuel%=V:virtuel%(0)
+buffer%=V:buffer%(0)
+buffer2%=V:buffer2%(0)
+vga%=V:vga%(0)
+'
+chemin$="\bat_ii\"
+a$=SPACE$(32500)
+BLOAD chemin$+"makedyno\dynodeco.pi1",V:a$
+LET iff$=SPACE$(1000)
+BLOAD chemin$+"makedyno\iff.prg",V:iff$
+LET cpti$=SPACE$(1000)
+BLOAD chemin$+"makedyno\cpti_b2.prg",V:cpti$
+LET dcpti$=SPACE$(2000)
+BLOAD chemin$+"makedyno\dcpti_b2.prg",V:dcpti$
+LET echcol$=SPACE$(1000)
+BLOAD chemin$+"makedyno\echcol.prg",V:echcol$
+prgiffvga$=SPACE$(1000)
+BLOAD chemin$+"makedyno\iffvga.prg",V:prgiffvga$
+prg256to16$=SPACE$(1000)
+BLOAD chemin$+"makedyno\256to16.prg",V:prg256to16$
+pcx$=SPACE$(1000)
+BLOAD chemin$+"makedyno\pcx2.prg",V:pcx$
+makepcx$=SPACE$(1000)
+BLOAD chemin$+"makedyno\makepcx2.prg",V:makepcx$
+'
+tablecol$=SPACE$(256)
+BLOAD chemin$+"makedyno\tablecol",V:tablecol$
+CLS
+palette$=SPACE$(32)
+BMOVE V:a$+2,V:palette$,32
+~XBIOS(6,L:V:palette$)
+BMOVE V:a$+34,virtuel%,32000
+SLPOKE 1102,virtuel%
+GET 0,40,319,59,souris$
+GET 0,0,319,39,menu1$
+GET 0,60,319,99,menuanim$
+SLPOKE 1102,XBIOS(2)
+'
+bii_init
+'
+affdir!=-1
+affnom!=-1
+affbox!=-1
+affsouris!=-1
+special!=0
+yorg%=40
+ecranvga!=0
+ecran16!=-1
+'
+aff
+'
+' mapping$=SPACE$(512*9)
+' lirelogique(V:mapping$,1,9)
+' adr=V:mapping$
+' DO
+' EXIT IF CARD{adr}=105
+' adr=adr+8
+' LOOP
+' no=CARD{adr+4}
+' nb=CARD{adr+6}
+' lirelogique(buffer,no,nb)
+' n$="dyno100.bii"
+' @loadbii2
+' aff
+'
+'
+'
+'
+DO
+  IF GEMDOS(11)
+    clavier%=INP(2)
+    IF clavier%=200
+      yorg%=MAX(0,yorg%-10)
+      aff
+    ENDIF
+    IF clavier%=208
+      yorg%=MIN(40,yorg%+10)
+      aff
+    ENDIF
+    '    PRINT clavier
+    IF clavier%=108 !L
+      GOSUB loadbii
+      aff
+    ENDIF
+  ENDIF
+  MOUSE x%,y%,k%
+  IF k%=1 OR k%=2
+    a%=INT(x%/32)
+    b%=INT(y%/20)
+    no%=a%+10*b%
+    IF no%<20
+      ON no%+1 GOSUB loadbii,addbox,addseq,iffbii,majiff,editbox,anim,cpt,makesour,specialonoff,savebii,supbox,ecran16vga,pi1bii,majpi1,boxonoff,mouseonoff,dironoff,numberonoff,quit
+      relache
+      '   FOR i=0 TO LEN(bii_animstatique$)-1 STEP 2
+      '      PRINT i,CARD{V:bii_animstatique$+i}
+      '       ~INP(2)
+      '      NEXT i
+    ENDIF
+  ENDIF
+  IF k%=2
+    '    sauvepi1
+  ENDIF
+  '  bii_animstatique$=""
+  EXIT IF sortie!=TRUE
+LOOP
+'
+> PROCEDURE sauvepi1
+  a$=MKI$(0)
+  FOR i%=0 TO 15
+    a$=a$+MKI$(DPEEK(&HFF8240+i%*2))
+  NEXT i%
+  SGET b$
+  a$=a$+b$
+  BSAVE "makedyno.pi1",V:a$,32034
+RETURN
+a:
+> PROCEDURE affvirtuel
+  BMOVE virtuel%,XBIOS(2),32000
+RETURN
+> PROCEDURE adddi(a$)
+  BMOVE V:a$,bii_donneesimage%+bii_ditaille%,LEN(a$)
+  bii_ditaille%=bii_ditaille%+LEN(a$)
+RETURN
+> PROCEDURE affimage(x%,y%)
+  LOCAL l%,h%,a$
+  l%=CARD{bii_donneesimage%}+1
+  h%=CARD{bii_donneesimage%+2}+1
+  a$=SPACE$(l%*h%/2+6)
+  BMOVE bii_donneesimage%,V:a$,LEN(a$)
+  PUT x%,y%,a$
+RETURN
+> PROCEDURE affdi_no(x%,y%)
+  LOCAL l%,h%,a$
+  l%=CARD{bii_di_noremap%}+1
+  h%=CARD{bii_di_noremap%+2}+1
+  a$=SPACE$(l%*h%/2+6)
+  BMOVE bii_di_noremap%,V:a$,LEN(a$)
+  PUT x%,y%,a$
+RETURN
+> PROCEDURE animprogexec
+  relache
+  SLPOKE 1102,virtuel%
+  CLS
+  affimage(0,0)
+  SLPOKE 1102,XBIOS(2)
+  '
+  BMOVE virtuel%,XBIOS(2),32000
+  '
+  adranimstat(animstatcour%)
+  x%=CARD{adr%}
+  y%=CARD{adr%+2}
+  largeur%=CARD{adr%+4}
+  hauteur%=CARD{adr%+6}
+  offset%=CARD{adr%+8}
+  nb%=CARD{adr%+10}
+  type%=CARD{adr%+12}
+  nblprog%=CARD{adr%+14}
+  '
+  GET 0,0,largeur%-1,hauteur%-1,bloc$
+  '
+  exitanimexec!=0
+  '
+  pc%=0
+  a%=0
+  DO
+    IF MOUSEK<>0
+      exitanimexec!=-1
+    ENDIF
+    code3%=BYTE{V:animprog$+pc%}
+    code2%=BYTE{V:animprog$+pc%+1}
+    code1%=BYTE{V:animprog$+pc%+2}
+    code0%=BYTE{V:animprog$+pc%+3}
+    pc%=pc%+4
+    IF code3%=0
+      affetapestat(code0%)
+    ENDIF
+    IF code3%=1
+      affetapestat(a%)
+    ENDIF
+    IF code3%=2
+      @pause(code0%)
+    ENDIF
+    IF code3%=3
+      @pause(a%)
+    ENDIF
+    IF code3%=4
+      a%=code1%+(code0%-code1%+1)*RND
+    ENDIF
+    IF code3%=5
+      IF a%=0
+        pc%=code0%*4
+      ENDIF
+    ENDIF
+    IF code3%=6
+      pc%=code0%*4
+    ENDIF
+    EXIT IF code3%=7 OR exitanimexec!
+    IF code3%=9
+      PRINT CHR$(7);
+    ENDIF
+  LOOP
+RETURN
+> PROCEDURE affetapestat(n%)
+  t%=TIMER
+  BMOVE bii_donneesimage%+6+offset%+largeur%*hauteur%/2*n%,V:bloc$+6,largeur%*hauteur%/2
+  SLPOKE 1102,virtuel%
+  PUT x%,y%,bloc$
+  SLPOKE 1102,XBIOS(2)
+  REPEAT
+  UNTIL TIMER>t%+3*4
+  BMOVE virtuel%,XBIOS(2),32000
+RETURN
+> PROCEDURE affanimprog
+  CLS
+  DEFTEXT 13,0,0,4
+  TEXT 260,4,"AFFICHER #"
+  TEXT 260,4+6,"AFFICHER A"
+  TEXT 260,4+6*2,"PAUSE #"
+  TEXT 260,4+6*3,"PAUSE A"
+  TEXT 260,4+6*4,"ALEA <=A<="
+  TEXT 260,4+6*5,"SI A=0 ->#"
+  TEXT 260,4+6*6,"ALLER #"
+  TEXT 260,4+6*7,"FIN"
+  TEXT 260,4+6*9,"SON #"
+  '
+  TEXT 260,4+6*29,"INSERT"
+  TEXT 260,4+6*30,"DELETE"
+  TEXT 260,4+6*31,"TEST"
+  TEXT 260,4+6*32,"EXIT"
+  DEFTEXT 15,0,0,4
+  FOR i%=0 TO LEN(animprog$)/4-1
+    IF lignecour%=i%
+      DEFTEXT 13,0,0,4
+      afflignecode(i%)
+      DEFTEXT 15,0,0,4
+    ELSE
+      afflignecode(i%)
+    ENDIF
+  NEXT i%
+  DEFTEXT 15,0,0,6
+RETURN
+> PROCEDURE afflignecode(l%)
+  code3%=BYTE{V:animprog$+l%*4}
+  code2%=BYTE{V:animprog$+l%*4+1}
+  code1%=BYTE{V:animprog$+l%*4+2}
+  code0%=BYTE{V:animprog$+l%*4+3}
+  code3$=RIGHT$("   "+STR$(code3%),3)
+  code2$=RIGHT$("   "+STR$(code2%),3)
+  code1$=RIGHT$("   "+STR$(code1%),3)
+  code0$=RIGHT$("   "+STR$(code0%),3)
+  makecodeascii
+  x%=0
+  y%=l%
+  IF y%>32
+    y%=y%-33
+    x%=x%+132
+  ENDIF
+  ligne$=RIGHT$("000"+STR$(l%),3)
+  TEXT x%,y%*6+4,ligne$+" "+code$
+RETURN
+> PROCEDURE addbox
+  IF bii_nom$<>""
+    HIDEM
+    aff
+    SGET decor$
+    relache
+    DO
+      MOUSE x%,y%,k%
+      clipsouris
+      EXIT IF k%<>0
+      BMOVE V:decor$,virtuel%,32000
+      SLPOKE 1102,virtuel%
+      COLOR 15
+      LINE 0,y%,319,y%
+      LINE x%,0,x%,199
+      SLPOKE 1102,XBIOS(2)
+      BMOVE virtuel%,XBIOS(2),32000
+    LOOP
+    x1%=x%
+    y1%=y%
+    relache
+    DO
+      MOUSE x%,y%,k%
+      clipsouris
+      EXIT IF k%<>0
+      '   a$=decor$
+      BMOVE V:decor$,virtuel%,32000
+      SLPOKE 1102,virtuel%
+      COLOR 15
+      BOX x1%,y1%,x%,y%
+      SLPOKE 1102,XBIOS(2)
+      BMOVE virtuel%,XBIOS(2),32000
+    LOOP
+    x2%=x%
+    y2%=y%
+    IF x1%>x2%
+      SWAP x1%,x2%
+    ENDIF
+    IF y1%>y2%
+      SWAP y1%,y2%
+    ENDIF
+    y1%=y1%-yorg%
+    y2%=y2%-yorg%
+    relache
+    SHOWM
+    '
+    PUT 0,0,souris$
+    TEXT 0,46,"choisissez la souris..."
+    DO
+      MOUSE x%,y%,k%
+      IF k%=1
+        a%=INT(x%/32)
+        b%=INT(y%/20)
+        no%=a%+10*b%
+      ENDIF
+      EXIT IF k%<>0 AND no%<10
+    LOOP
+    s%=no%+1
+    PUT 0,0,menu1$
+    PRINT s%
+    '    INPUT "numero souris ";s
+    INPUT "numero de direction (BII) ";b%
+    INPUT "numero de sous programme d'action ";p%
+    a$=MKI$(x1%)+MKI$(y1%)+MKI$(x2%)+MKI$(y2%)+MKI$(s%)+MKI$(b%)+MKI$(p%)
+    IF bii_changementforme$=""
+      bii_changementforme$=MKI$(0)
+    ENDIF
+    bii_changementforme$=bii_changementforme$+a$
+    CARD{V:bii_changementforme$}=CARD{V:bii_changementforme$}+1
+    modif!=-1
+  ENDIF
+  aff
+RETURN
+> PROCEDURE aff
+  SLPOKE 1102,virtuel%
+  CLS
+  affimage(0,yorg%)
+  IF affnom!
+    TEXT 0,yorg%+6,bii_nom$
+  ENDIF
+  affbox
+  '
+  PUT 0,0,menu1$
+  IF special!
+    TEXT 289,18,"on"
+  ELSE
+    TEXT 289,18,"off"
+  ENDIF
+  IF ecranvga!
+    TEXT 32*2,18+20,"vga"
+  ELSE
+    TEXT 32*2,18+20,"16"
+  ENDIF
+  PRINT "v1: ";LEN(bii_sequence1$)
+  PRINT "v2: ";LEN(bii_sequence2$)
+  SLPOKE 1102,XBIOS(2)
+  BMOVE virtuel%,XBIOS(2),32000
+RETURN
+> PROCEDURE anim
+  IF bii_nom$<>""
+    animstatcour%=0
+    animstatetapecour%=0
+    affanim
+    relache
+    ani_sortie!=0
+    DO
+      MOUSE x%,y%,k%
+      IF k%=1 OR k%=2
+        a%=INT(x%/32)
+        b%=INT(y%/20)
+        no%=a%+10*b%
+        IF no%<20
+          ON no%+1 GOSUB addstat,plusmoinsstat,bidon,editprog,editstat,supstat,plusmoinsetape,bidon,majetape,addetape,adddyn,bidon,bidon,bidon,bidon,bidon,bidon,bidon,bidon,ani_exit
+          relache
+        ENDIF
+      ENDIF
+      EXIT IF ani_sortie!=TRUE
+    LOOP
+    aff
+  ENDIF
+RETURN
+> PROCEDURE addstat
+  IF bii_nom$<>""
+    FILESELECT chemin$+"images\*.???","",n$
+    IF n$<>""
+      chargeimage
+      ecran$=buf$
+      couper3
+      b1$=bloc$
+      largeur%=x2%-x1%+1
+      hauteur%=y2%-y1%+1
+      '
+      HIDEM
+      COLOR 15
+      GRAPHMODE 3
+      '
+      ecran$=buf$
+      REPEAT
+        DO
+          BMOVE V:ecran$,virtuel%,32000
+          MOUSE x%,y%,k%
+          SLPOKE 1102,virtuel%
+          BOX x%,y%,x%+largeur%-1,y%+hauteur%-1
+          SLPOKE 1102,XBIOS(2)
+          BMOVE virtuel%,XBIOS(2),32000
+          EXIT IF k%<>0
+        LOOP
+        IF k%=1
+          SLPOKE 1102,virtuel%
+          BOX x%,y%,x%+largeur%-1,y%+hauteur%-1
+          GET x%,y%,x%+largeur%-1,y%+hauteur%-1,a$
+          SLPOKE 1102,XBIOS(2)
+          CLS
+          PUT 0,0,a$
+          REPEAT
+          UNTIL MOUSEK=0
+          bloc$=bloc$+a$
+        ENDIF
+      UNTIL k%=2
+      '
+      relache
+      SLPOKE 1102,virtuel%
+      CLS
+      affimage(0,0)
+      SLPOKE 1102,XBIOS(2)
+      b$=SPACE$(32000)
+      BMOVE virtuel%,V:b$,32000
+      DO
+        MOUSE x%,y%,k%
+        x%=x% AND &HFFF0
+        BMOVE V:b$,virtuel%,32000
+        SLPOKE 1102,virtuel%
+        PUT x%,y%,bloc$
+        SLPOKE 1102,XBIOS(2)
+        BMOVE virtuel%,XBIOS(2),32000
+        EXIT IF k%<>0
+      LOOP
+      GRAPHMODE 1
+      addanim
+      SHOWM
+    ENDIF
+  ENDIF
+  affanim
+RETURN
+> PROCEDURE addanimetape ! x,y position relative; bloc$ donnees
+  LOCAL i%
+  largeur%=CARD{V:bloc$}+1
+  hauteur%=CARD{V:bloc$+2}+1
+  taille%=largeur%*hauteur%/2
+  nb%=LEN(bloc$)/(taille%+6)
+  anim$=""
+  FOR i%=1 TO nb%
+    anim$=anim$+MID$(bloc$,1+(i%-1)*(taille%+6)+6,taille%)
+  NEXT i%
+  offset%=bii_ditaille%-6
+  IF bii_ditaille%+LEN(anim$)<62000
+    adddi(anim$)
+    adranimstat(animstatcour%)
+    CARD{adr%+10}=CARD{adr%+10}+nb%
+    '
+  ELSE
+    ALERT 0,"plus de place pour une  |nouvelle animation !|le fichier ne doit|pas depasser  64 Ko|",1,"OK",a%
+  ENDIF
+RETURN
+PROCEDURE addanim ! x,y position relative; bloc$ donnees
+  LOCAL i%
+  largeur%=CARD{V:bloc$}+1
+  hauteur%=CARD{V:bloc$+2}+1
+  taille%=largeur%*hauteur%/2
+  nb%=LEN(bloc$)/(taille%+6)
+  anim$=""
+  FOR i%=1 TO nb%
+    anim$=anim$+MID$(bloc$,1+(i%-1)*(taille%+6)+6,taille%)
+  NEXT i%
+  offset%=bii_ditaille%-6
+  PRINT
+  PRINT bii_ditaille%
+  ~INP(2)
+  IF bii_ditaille%+LEN(anim$)<64000
+    adddi(anim$)
+    '
+    CLS
+    '    REPEAT
+    INPUT "numero de groupe ";type%
+    '    UNTIL type=-1 OR (type>=0 AND type<=15)
+    '     IF type<>-1
+    '    type=2^type
+    ' ENDIF
+    anim$=MKI$(x%)+MKI$(y%)+MKI$(largeur%)+MKI$(hauteur%)+MKI$(offset%)+MKI$(nb%)+MKI$(type%)+MKI$(0)
+    IF bii_animstatique$=""
+      bii_animstatique$=MKI$(0)
+    ENDIF
+    bii_animstatique$=bii_animstatique$+anim$
+    CARD{V:bii_animstatique$}=CARD{V:bii_animstatique$}+1
+  ELSE
+    ALERT 0,"plus de place pour une  |nouvelle animation !|le fichier ne doit|pas depasser  64 Ko|",1,"OK",a%
+  ENDIF
+RETURN
+> PROCEDURE affbox
+  IF bii_changementforme$<>""
+    nb%=CARD{V:bii_changementforme$}
+    COLOR 15
+    FOR i%=0 TO nb%-1
+      x1%=CARD{i%*14+2+V:bii_changementforme$}
+      y1%=CARD{i%*14+4+V:bii_changementforme$}
+      x2%=CARD{i%*14+6+V:bii_changementforme$}
+      y2%=CARD{i%*14+8+V:bii_changementforme$}
+      souris%=CARD{i%*14+10+V:bii_changementforme$}
+      LET direction%=CARD{i%*14+12+V:bii_changementforme$}
+      sousprog%=CARD{i%*14+14+V:bii_changementforme$}
+      '
+      IF affbox!
+        BOX x1%,y1%+yorg%,x2%,y2%+yorg%
+      ENDIF
+      IF affdir!
+        TEXT x1%,y1%+6+yorg%,STR$(direction%)
+      ENDIF
+      IF affsouris!
+        TEXT x2%-6,y2%+yorg%,STR$(souris%)
+      ENDIF
+    NEXT i%
+  ENDIF
+RETURN
+> PROCEDURE affanim
+  SLPOKE 1102,virtuel%
+  CLS
+  PUT 0,0,menuanim$
+  IF affnom!
+    TEXT 0,46,bii_nom$
+  ENDIF
+  IF bii_animstatique$=""
+    TEXT 0,46+8,"AUCUNE ANIMATION STATIQUE"
+  ELSE
+    nb%=CARD{V:bii_animstatique$}
+    TEXT 0,46+8,STR$(nb%)+" ANIMATION(S)"
+    TEXT 0,46+8*3,"ANIMATION COURANTE: "+STR$(animstatcour%)
+    adranimstat(animstatcour%)
+    TEXT 0,46+8*4,STR$(CARD{adr%+10})+" ETAPE(S)"
+    TEXT 0,46+8*5,"ETAPE COURANTE: "+STR$(animstatetapecour%)
+    l%=CARD{adr%+4}
+    h%=CARD{adr%+6}
+    offset%=CARD{adr%+8}
+    nb%=CARD{adr%+10}
+    type%=CARD{adr%+12}
+    nblprog%=CARD{adr%+14}
+    GET 0,0,l%-1,h%-1,bloc$
+    t%=l%*h%/2
+    BMOVE bii_donneesimage%+offset%+6+t%*animstatetapecour%,V:bloc$+6,t%
+    PUT 180,45,bloc$
+  ENDIF
+  SLPOKE 1102,XBIOS(2)
+  BMOVE virtuel%,XBIOS(2),32000
+RETURN
+> PROCEDURE adranimstat(n%) !retour adr pointe sur la zone d'animation statique
+  IF n%=0
+    adr%=V:bii_animstatique$+2
+  ELSE
+    adr%=V:bii_animstatique$+2
+    FOR i%=0 TO n%-1
+      adr%=adr%+16+4*CARD{adr%+14}
+    NEXT i%
+  ENDIF
+RETURN
+> PROCEDURE addbuffer(a$)
+  IF LEN(a$)<>0
+    BMOVE V:a$,buffer%+buffertaille%,LEN(a$)
+    buffertaille%=buffertaille%+LEN(a$)
+  ENDIF
+RETURN
+> PROCEDURE addseq
+  FILESELECT "e:\bat_ii\sequences\*.se1","",n$
+  IF n$<>""
+    OPEN "i",#1,n$
+    bii_sequence1$=SPACE$(LOF(#1))
+    CLOSE #1
+    BLOAD n$,V:bii_sequence1$
+    '
+    n$=LEFT$(n$,LEN(n$)-3)+"se2" !'FILESELECT "\*.se2","",n$
+    OPEN "i",#1,n$
+    bii_sequence2$=SPACE$(LOF(#1))
+    CLOSE #1
+    BLOAD n$,V:bii_sequence2$
+  ELSE
+    bii_sequence1$=""
+    bii_sequence2$=""
+  ENDIF
+RETURN
+> PROCEDURE addetape
+  IF bii_nom$<>""
+    FILESELECT chemin$+"images\*.???","",n$
+    IF n$<>""
+      a$=SPACE$(32500)
+      BLOAD n$,V:a$
+      buf$=SPACE$(32000)
+      '
+      IF RIGHT$(n$,3)="PC1"
+        offset%=34
+      ENDIF
+      IF RIGHT$(n$,3)="IFF"
+        offset%=INSTR(a$,"BODY")+7
+      ENDIF
+      '
+      reg%(8)=V:a$+offset%
+      reg%(9)=V:buf$
+      RCALL V:iff$,reg%()
+      ecran$=buf$
+      '
+      '
+      largeur%=32
+      hauteur%=32
+      '
+      HIDEM
+      COLOR 15
+      GRAPHMODE 3
+      '
+      ecran$=buf$
+      bloc$=""
+      REPEAT
+        DO
+          BMOVE V:ecran$,virtuel%,32000
+          MOUSE x%,y%,k%
+          SLPOKE 1102,virtuel%
+          BOX x%,y%,x%+largeur%-1,y%+hauteur%-1
+          SLPOKE 1102,XBIOS(2)
+          BMOVE virtuel%,XBIOS(2),32000
+          EXIT IF k%<>0
+        LOOP
+        IF k%=1
+          SLPOKE 1102,virtuel%
+          BOX x%,y%,x%+largeur%-1,y%+hauteur%-1
+          GET x%,y%,x%+largeur%-1,y%+hauteur%-1,a$
+          SLPOKE 1102,XBIOS(2)
+          CLS
+          PUT 0,0,a$
+          REPEAT
+          UNTIL MOUSEK=0
+          bloc$=bloc$+a$
+        ENDIF
+      UNTIL k%=2
+      '
+      relache
+      SLPOKE 1102,virtuel%
+      CLS
+      affimage(0,0)
+      SLPOKE 1102,XBIOS(2)
+      b$=SPACE$(32000)
+      BMOVE virtuel%,V:b$,32000
+      DO
+        MOUSE x%,y%,k%
+        x%=x% AND &HFFF0
+        BMOVE V:b$,virtuel%,32000
+        SLPOKE 1102,virtuel%
+        PUT x%,y%,bloc$
+        SLPOKE 1102,XBIOS(2)
+        BMOVE virtuel%,XBIOS(2),32000
+        EXIT IF k%<>0
+      LOOP
+      GRAPHMODE 1
+      addanimetape
+      SHOWM
+    ENDIF
+  ENDIF
+  affanim
+RETURN
+'
+> PROCEDURE ani_exit
+  ani_sortie!=-1
+RETURN
+b:
+> PROCEDURE bidon
+RETURN
+> PROCEDURE boxonoff
+  affbox!=NOT affbox!
+  aff
+RETURN
+> PROCEDURE bii_init
+  bii_nom$=""
+  bii_entete$=SPACE$(26)
+  bii_ditaille%=0 !            bloc de l'image brut
+  bii_changementforme$="" !         bloc de changement de forme
+  bii_premierplan$="" !             bloc de premier plan
+  bii_animstatique$="" !            bloc d'animations statiques
+  bii_animdyn$="" !                 bloc d'animation dynamique
+  bii_remap$=SPACE$(32) !                   bloc palette pour remap
+  FOR i%=0 TO 15
+    CARD{V:bii_remap$+i%*2}=i%
+  NEXT i%
+  bii_sequence1$=""
+  bii_sequence2$=""
+RETURN
+c:
+> PROCEDURE comande(l%)
+  IF l%=0
+    PRINT AT(34,12);
+    INPUT "X ";x%
+    @remplacecode(lignecour%,x%)
+    affanimprog
+  ENDIF
+  IF l%=1
+    @remplacecode(lignecour%,&H1000000)
+    affanimprog
+  ENDIF
+  IF l%=2
+    PRINT AT(34,12);
+    INPUT "X ";x%
+    @remplacecode(lignecour%,&H2000000+x%)
+    affanimprog
+  ENDIF
+  IF l%=3
+    @remplacecode(lignecour%,&H3000000)
+    affanimprog
+  ENDIF
+  IF l%=4
+    PRINT AT(34,12);
+    INPUT "X ";x%
+    PRINT AT(34,12);
+    INPUT "Y ";y%
+    @remplacecode(lignecour%,&H4000000+x%*256+y%)
+    affanimprog
+  ENDIF
+  IF l%=5
+    PRINT AT(34,12);
+    INPUT "X ";x%
+    @remplacecode(lignecour%,&H5000000+x%)
+    affanimprog
+  ENDIF
+  IF l%=6
+    PRINT AT(34,12);
+    INPUT "X ";x%
+    @remplacecode(lignecour%,&H6000000+x%)
+    affanimprog
+  ENDIF
+  IF l%=7
+    @remplacecode(lignecour%,&H7000000)
+    affanimprog
+  ENDIF
+  IF l%=9
+    PRINT AT(34,12);
+    INPUT "X ";x%
+    @remplacecode(lignecour%,&H9000000+x%)
+    affanimprog
+  ENDIF
+  '
+  IF l%=29
+    insertcode(lignecour%,&H8000000)
+    affanimprog
+  ENDIF
+  IF l%=30
+    @deletecode(lignecour%)
+    affanimprog
+  ENDIF
+  IF l%=31
+    animprogexec
+    affanimprog
+  ENDIF
+  IF l%=32
+    exit!=-1
+  ENDIF
+RETURN
+> PROCEDURE couper2
+  ecran2$=ecran$
+debutcouper2:
+  ecran$=ecran2$
+  relache
+  COLOR 15
+  HIDEM
+  DO
+    MOUSE x%,y%,k%
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    GRAPHMODE 1
+    TEXT 10,10,x$+y$
+    GRAPHMODE 3
+    LINE 0,y%,319,y%
+    LINE x%,0,x%,199
+    GRAPHMODE 1
+    SLPOKE 1102,XBIOS(2)
+    affvirtuel
+  LOOP
+  IF k%=2
+    GOTO debutcouper2
+  ENDIF
+  x1%=x%
+  y1%=y%
+  SLPOKE 1102,virtuel%
+  BMOVE V:ecran$,virtuel%,32000
+  GET x1%,y1%,319,199,a$
+  CLS
+  PUT 0,0,a$
+  offsetx%=x1%
+  offsety%=y1%
+  SGET ecran$
+  SLPOKE 1102,XBIOS(2)
+  x1%=0
+  y1%=0
+  REPEAT
+  UNTIL MOUSEK=0
+  DO
+    MOUSE x%,y%,k%
+    IF NOT special!
+      x%=160+((x%/2+15) AND &HFFF0)-1
+      IF y%<80
+        y%=79
+      ELSE
+        y%=159
+      ENDIF
+    ENDIF
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    GRAPHMODE 1
+    TEXT 10,10,x$+y$
+    LINE 0,y1%,319,y1%
+    LINE x1%,0,x1%,199
+    GRAPHMODE 3
+    LINE 0,y%,319,y%
+    LINE x%,0,x%,199
+    GRAPHMODE 1
+    SLPOKE 1102,XBIOS(2)
+    BMOVE virtuel%,XBIOS(2),32000
+  LOOP
+  IF k%=2
+    GOTO debutcouper2
+  ENDIF
+  x2%=x%
+  y2%=y%
+  '
+  SLPOKE 1102,V:ecran$
+  GET x1%,y1%,x2%,y2%,bloc$
+  SLPOKE 1102,XBIOS(2)
+  '
+  REPEAT
+  UNTIL MOUSEK=0
+  SHOWM
+RETURN
+> PROCEDURE couper3
+  ecran2$=ecran$
+debutcouper3:
+  ecran$=ecran2$
+  relache
+  b$=SPACE$(32000)
+  COLOR 15
+  HIDEM
+  DO
+    MOUSE x%,y%,k%
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    GRAPHMODE 1
+    TEXT 10,10,x$+y$
+    GRAPHMODE 3
+    LINE 0,y%,319,y%
+    LINE x%,0,x%,199
+    GRAPHMODE 1
+    SLPOKE 1102,XBIOS(2)
+    BMOVE virtuel%,XBIOS(2),32000
+  LOOP
+  IF k%=2
+    GOTO debutcouper3
+  ENDIF
+  x1%=x%
+  y1%=y%
+  SLPOKE 1102,V:ecran$
+  GET x1%,y1%,319,199,a$
+  SLPOKE 1102,V:ecran$
+  CLS
+  PUT 0,0,a$
+  SLPOKE 1102,XBIOS(2)
+  x1%=0
+  y1%=0
+  REPEAT
+  UNTIL MOUSEK=0
+  DO
+    MOUSE x%,y%,k%
+    x%=16+((x%+15) AND &HFFF0)-1
+    IF x%>319
+      x%=319
+    ENDIF
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    GRAPHMODE 1
+    TEXT 10,10,x$+y$
+    LINE 0,y1%,319,y1%
+    LINE x1%,0,x1%,199
+    GRAPHMODE 3
+    LINE 0,y%,319,y%
+    LINE x%,0,x%,199
+    GRAPHMODE 1
+    SLPOKE 1102,XBIOS(2)
+    affvirtuel
+  LOOP
+  IF k%=2
+    GOTO debutcouper2
+  ENDIF
+  x2%=x%
+  y2%=y%
+  '
+  SLPOKE 1102,V:ecran$
+  GET x1%,y1%,x2%,y2%,bloc$
+  SLPOKE 1102,XBIOS(2)
+  '
+  REPEAT
+  UNTIL MOUSEK=0
+  SHOWM
+RETURN
+> PROCEDURE couper
+  COLOR 15
+  HIDEM
+  DO
+    MOUSE x%,y%,k%
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    GRAPHMODE 1
+    TEXT 10,10,x$+y$
+    GRAPHMODE 3
+    LINE 0,y%,319,y%
+    LINE x%,0,x%,199
+    GRAPHMODE 1
+    SLPOKE 1102,XBIOS(2)
+    affvirtuel
+  LOOP
+  x1%=x%
+  y1%=y%
+  REPEAT
+  UNTIL MOUSEK=0
+  DO
+    MOUSE x%,y%,k%
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    GRAPHMODE 1
+    TEXT 10,10,x$+y$
+    LINE 0,y1%,319,y1%
+    LINE x1%,0,x1%,199
+    GRAPHMODE 3
+    LINE 0,y%,319,y%
+    LINE x%,0,x%,199
+    GRAPHMODE 1
+    SLPOKE 1102,XBIOS(2)
+    affvirtuel
+  LOOP
+  x2%=x%
+  y2%=y%
+  '
+  SLPOKE 1102,V:ecran$
+  GET x1%,y1%,x2%,y2%,bloc$
+  '
+  REPEAT
+  UNTIL MOUSEK=0
+  DO
+    MOUSE x%,y%,k%
+    EXIT IF k%<>0
+    '
+    SLPOKE 1102,virtuel%
+    SPUT ecran$
+    x$=STR$(x%)
+    x$=x$+SPACE$(4-LEN(x$))
+    y$=STR$(y%)
+    y$=y$+SPACE$(4-LEN(y$))
+    TEXT 10,10,x$+y$
+    PUT x%,y%,bloc$
+    SLPOKE 1102,XBIOS(2)
+    affvirtuel
+  LOOP
+  SHOWM
+RETURN
+> PROCEDURE clipsouris
+  x1c%=0
+  x2c%=CARD{V:bii_entete$+4}-1
+  y1c%=yorg%
+  y2c%=CARD{V:bii_entete$+6}-1+yorg%
+  IF x%>x2c%
+    x%=x2c%
+    SETMOUSE x%,y%
+  ENDIF
+  IF y%<y1c%
+    y%=y1c%
+    SETMOUSE x%,y%
+  ENDIF
+  IF y%>y2c%
+    y%=y2c%
+    SETMOUSE x%,y%
+  ENDIF
+RETURN
+> PROCEDURE cpt
+  '
+  CLS
+  INPUT "motif (ex:1??) ";motif$
+  INPUT "nombre de passe ",nbpasse%
+  '
+  chemin2$="\bat_ii\newbii\"
+  nom$="dyno"+motif$+".bii"
+  '
+  ~FSETDTA(BASEPAGE+128)
+  e%=FSFIRST(chemin2$+nom$,-1)
+  DO UNTIL e%
+    n2$=CHAR{BASEPAGE+158}
+    n$=chemin2$+n2$
+    '
+    PRINT n2$
+    GOSUB loadbii2
+    affimage(0,0)
+    affdi_no(160,0)
+    PRINT LEN(bii_donneesimagecpt$)
+    FOR passe%=1 TO nbpasse%
+      unepasse
+    NEXT passe%
+    makefinalbii2
+    @savebii
+    '
+    e%=FSNEXT()
+  LOOP
+  aff
+RETURN
+> PROCEDURE chargeimage !entree: n$ nom du fichier   retour: buf$=image
+  a$=SPACE$(32500)
+  BLOAD n$,V:a$
+  buf$=SPACE$(32000)
+  '
+  IF RIGHT$(n$,3)="PC1"
+    offset%=34
+  ENDIF
+  IF RIGHT$(n$,3)="IFF" OR RIGHT$(n$,3)="LBM"
+    offset%=INSTR(a$,"BODY")+7
+  ENDIF
+  '
+  reg%(8)=V:a$+offset%
+  reg%(9)=V:buf$
+  RCALL V:iff$,reg%()
+RETURN
+d:
+> PROCEDURE dironoff
+  affdir!=NOT affdir!
+  aff
+RETURN
+> PROCEDURE deletecode(l%)
+  LOCAL i%
+  IF l%<LEN(animprog$)/4-1
+    FOR i%=0 TO LEN(animprog$)/4-1
+      code3%=BYTE{V:animprog$+i%*4}
+      code2%=BYTE{V:animprog$+i%*4+1}
+      code1%=BYTE{V:animprog$+i%*4+2}
+      code0%=BYTE{V:animprog$+i%*4+3}
+      IF code3%=5 OR code3%=6 ! sauts
+        IF code0%>=l%
+          BYTE{V:animprog$+i%*4+3}=code0%-1
+        ENDIF
+      ENDIF
+    NEXT i%
+    animprog$=LEFT$(animprog$,l%*4)+RIGHT$(animprog$,LEN(animprog$)-l%*4-4)
+  ENDIF
+RETURN
+e:
+> PROCEDURE editprog
+  LOCAL exit!
+  IF bii_animstatique$<>""
+    inianimprog
+    adranimstat(animstatcour%)
+    x%=CARD{adr%}
+    y%=CARD{adr%+2}
+    largeur%=CARD{adr%+4}
+    hauteur%=CARD{adr%+6}
+    offset%=CARD{adr%+8}
+    nb%=CARD{adr%+10}
+    type%=CARD{adr%+12}
+    nblprog%=CARD{adr%+14}
+    '
+    ' PRINT
+    ' PRINT nblprog
+    '  ~INP(2)
+    IF nblprog%=0
+      animprog$=MKL$(&HFF000000)
+    ELSE
+      animprog$=SPACE$(nblprog%*4)+MKL$(&HFF000000)
+      BMOVE adr%+16,V:animprog$,nblprog%*4
+    ENDIF
+    '
+    affanimprog
+    exit!=0
+    DO
+      MOUSE x%,y%,k%
+      IF k%=1
+        l%=y%/6
+        IF x%>260
+          comande(l%)
+        ELSE
+          IF x%>120
+            l%=l%+33
+          ENDIF
+          IF l%<=LEN(animprog$)/4-1
+            DEFTEXT 15,0,0,4
+            afflignecode(lignecour%)
+            DEFTEXT 13,0,0,4
+            lignecour%=l%
+            afflignecode(lignecour%)
+            affanimprog
+          ENDIF
+        ENDIF
+        relache
+      ENDIF
+      EXIT IF exit!
+    LOOP
+    '
+    '    PRINT LEN(bii_animstatique$)
+    adranimstat(animstatcour%)
+    debut%=adr%-V:bii_animstatique$+16
+    fin%=LEN(bii_animstatique$)-debut%-CARD{adr%+14}*4
+    nblprog%=LEN(animprog$)/4-1
+    bii_animstatique$=LEFT$(bii_animstatique$,debut%)+LEFT$(animprog$,nblprog%*4)+RIGHT$(bii_animstatique$,fin%)
+    adranimstat(animstatcour%)
+    CARD{adr%+14}=nblprog%
+    '   PRINT nblprog,debut,fin
+    '    ~INP(2)
+    '
+    DEFTEXT 15,0,0,6
+    affanim
+  ENDIF
+RETURN
+> PROCEDURE editbox
+  IF bii_nom$<>""
+    select
+    IF no%<>-1
+      CLS
+      PRINT
+      PRINT no%
+      PRINT
+      adr%=V:bii_changementforme$+2+no%*14
+      a%=CARD{adr%}
+      b%=CARD{adr%+2}
+      c%=CARD{adr%+4}
+      d%=CARD{adr%+6}
+      e%=CARD{adr%+8}
+      f%=CARD{adr%+10}
+      g%=CARD{adr%+12}
+      '
+      PRINT "numero de souris: ";
+      a$=STR$(e%)
+      FORM INPUT 5 AS a$
+      e%=VAL(a$)
+      PRINT "numero de direction: ";
+      a$=STR$(f%)
+      FORM INPUT 5 AS a$
+      f%=VAL(a$)
+      PRINT "numero de sous prog de test: ";
+      a$=STR$(g%)
+      FORM INPUT 5 AS a$
+      g%=VAL(a$)
+      CARD{adr%}=a%
+      CARD{adr%+2}=b%
+      CARD{adr%+4}=c%
+      CARD{adr%+6}=d%
+      CARD{adr%+8}=e%
+      CARD{adr%+10}=f%
+      CARD{adr%+12}=g%
+    ENDIF
+  ENDIF
+  aff
+RETURN
+> PROCEDURE editstat
+  CLS
+  adranimstat(animstatcour%)
+  a%=CARD{adr%+12}
+  a$=STR$(a%)
+  PRINT "TYPE D'APARITION: ";
+  FORM INPUT 5 AS a$
+  CARD{adr%+12}=VAL(a$)
+  affanim
+RETURN
+> PROCEDURE ecran16vga
+  IF ecranvga!
+    ecranvga!=0
+    ecran16!=-1
+    ~XBIOS(6,L:V:palette$)
+  ELSE
+    ecranvga!=-1
+    ecran16!=0
+    FOR i%=0 TO 15
+      v%=INT(i%/2)+(i% AND 1)*8 !ste
+      SDPOKE &HFF8240+i%*2,v%*256+v%*16+v%
+    NEXT i%
+  ENDIF
+  aff
+RETURN
+f:
+g:
+> PROCEDURE growbox
+RETURN
+i:
+> PROCEDURE inianimprog
+  codeanim$(0)="AFFICHER     ###"
+  codeanim$(1)="AFFICHER      A "
+  codeanim$(2)="PAUSE        ###"
+  codeanim$(3)="PAUSE         A "
+  codeanim$(4)="ALEA ###<=A<=###"
+  codeanim$(5)="SI A=0 ALLER ###"
+  codeanim$(6)="ALLER        ###"
+  codeanim$(7)="FIN             "
+  codeanim$(8)="RIEN            "
+  codeanim$(255)="                "
+  lignecour%=0
+RETURN
+> PROCEDURE insertcode(l%,code%)
+  LOCAL i%
+  animprog$=LEFT$(animprog$,l%*4)+MKL$(code%)+RIGHT$(animprog$,LEN(animprog$)-l%*4)
+  FOR i%=0 TO LEN(animprog$)/4-1
+    code3%=BYTE{V:animprog$+i%*4}
+    code2%=BYTE{V:animprog$+i%*4+1}
+    code1%=BYTE{V:animprog$+i%*4+2}
+    code0%=BYTE{V:animprog$+i%*4+3}
+    IF code3%=5 OR code3%=6 ! sauts
+      IF code0%>=l%
+        BYTE{V:animprog$+i%*4+3}=code0%+1
+      ENDIF
+    ENDIF
+  NEXT i%
+  '  INC lignecour
+RETURN
+> PROCEDURE iffbii
+  FILESELECT chemin$+"images\*.*","",n$
+  IF n$<>""
+    BLOAD n$,buffer%
+    IF RIGHT$(n$,3)="PC1"
+      offset%=34
+    ENDIF
+    ext$=UPPER$(RIGHT$(n$,3))
+    IF ext$="IFF" OR ext$="LBM"
+      a$=SPACE$(32000)
+      BMOVE buffer%,V:a$,32000
+      offset%=INSTR(a$,"BODY")+7
+    ENDIF
+    buf$=SPACE$(32000)
+    IF ecran16!
+      reg%(8)=buffer%+offset%
+      reg%(9)=V:buf$
+      RCALL V:iff$,reg%()
+    ELSE
+      reg%(8)=buffer%+offset%
+      reg%(9)=vga%
+      RCALL V:prgiffvga$,reg%()
+      tablecol$=SPACE$(256)
+      FOR i%=0 TO 255
+        r%=BYTE{buffer%+i%*3+48}
+        v%=BYTE{buffer%+i%*3+48+1}
+        b%=BYTE{buffer%+i%*3+48+2}
+        BYTE{V:tablecol$+i%}=(r%+v%+b%)*15/(255*3)
+      NEXT i%
+      BSAVE chemin$+"makedyno\tablecol",V:tablecol$,256
+      reg%(8)=vga%
+      reg%(9)=V:buf$
+      reg%(10)=V:tablecol$
+      RCALL V:prg256to16$,reg%()
+    ENDIF
+    makebii
+  ENDIF
+RETURN
+l:
+> PROCEDURE loadbii
+  FILESELECT chemin$+"newbii\*.*","",n$
+  IF LEN(n$)-LEN(chemin$+"newbii\")=3
+    n$=chemin$+"newbii\dyno"+RIGHT$(n$,3)+".bii"
+  ENDIF
+  @loadbii2
+RETURN
+> PROCEDURE loadbii2
+  IF n$<>""
+    BLOAD n$,buffer%
+    bii_nom$=RIGHT$(n$,11)
+    modif!=0
+    '
+    bii_entete$=SPACE$(26)
+    BMOVE buffer%,V:bii_entete$,26
+    '
+    a%=CARD{buffer%+8} ! offset sur bloc image
+    t%=CARD{buffer%+a%} ! taille bloc image cpt !!!!!!!!!!!!!
+    bii_dicpttaille%=t%
+    IF t%<>0
+      BMOVE buffer%+a%,bii_donneesimagecpt%,t%
+    ENDIF
+    '
+    a%=CARD{buffer%+10} ! offset sur bloc ch forme
+    t%=CARD{buffer%+a%}*14+2 ! taille bloc ch forme
+    bii_changementforme$=SPACE$(t%)
+    IF t%<>0
+      BMOVE buffer%+a%,V:bii_changementforme$,t%
+    ENDIF
+    '
+    a%=CARD{buffer%+18} ! offset sur bloc remap
+    IF a%<>0
+      bii_remap$=SPACE$(32)
+      BMOVE buffer%+a%,V:bii_remap$,32
+    ENDIF
+    '
+    bii_sequence1$=""
+    a%=CARD{buffer%+20} ! offset sur se1
+    IF a%<>0
+      t%=CARD{buffer%+22}-CARD{buffer%+20}
+      bii_sequence1$=SPACE$(t%)
+      BMOVE buffer%+a%,V:bii_sequence1$,t%
+    ENDIF
+    '
+    bii_sequence2$=""
+    a%=CARD{buffer%+22} ! offset sur se2
+    IF a%<>0
+      t%=CARD{buffer%+8}-CARD{buffer%+22}
+      bii_sequence2$=SPACE$(t%)
+      BMOVE buffer%+a%,V:bii_sequence2$,t%
+    ENDIF
+    '
+    bii_premierplan$=""
+    a%=CARD{buffer%+14}
+    IF a%<>0
+      taillestat
+      bii_animstatique$=SPACE$(taille%)
+      BMOVE buffer%+a%,V:bii_animstatique$,taille%
+    ELSE
+      bii_animstatique$=""
+    ENDIF
+    '
+    bii_animdyn$=""
+    '
+    TEXT 0,46,"Je decompacte..."
+    IF ecran16!
+      '
+      reg%(8)=bii_donneesimagecpt%+2
+      reg%(9)=bii_donneesimage%+6
+      '
+      RCALL V:dcpti$,reg%() !attention le decompactage se fait par multiple de 32 octets
+      bii_ditaille%=CARD{bii_donneesimagecpt%+2}+6
+      '
+      CARD{bii_donneesimage%}=CARD{V:bii_entete$+4}-1
+      CARD{bii_donneesimage%+2}=CARD{V:bii_entete$+6}-1
+      CARD{bii_donneesimage%+4}=4
+      '
+      bii_di_notaille%=bii_ditaille%
+      BMOVE bii_donneesimage%,bii_di_noremap%,bii_ditaille%
+      '
+      LET remap$=SPACE$(2000)
+      BLOAD chemin$+"makedyno\remap_b2.prg",V:remap$
+      relog(V:remap$)
+      reg%(8)=bii_donneesimage%+6
+      reg%(9)=reg%(8)
+      reg%(10)=V:bii_remap$
+      reg%(0)=(bii_ditaille%-6)/8
+      RCALL V:remap$,reg%()
+      '
+      bii_ditaille%=CARD{bii_donneesimagecpt%+2}+6
+    ENDIF
+    IF ecranvga!
+      '
+      reg%(8)=bii_donneesimagecpt%+2
+      reg%(9)=bii_donneesimagevga%
+      '
+      RCALL V:pcx$,reg%()
+      bii_divgataille%=CARD{bii_donneesimagecpt%+2}
+      '
+      CARD{bii_donneesimage%}=CARD{V:bii_entete$+4}-1
+      CARD{bii_donneesimage%+2}=CARD{V:bii_entete$+6}-1
+      CARD{bii_donneesimage%+4}=4
+      '
+      reg%(8)=bii_donneesimagevga%
+      reg%(9)=bii_donneesimage%+6
+      reg%(10)=V:tablecol$
+      RCALL V:prg256to16$,reg%()
+      '
+      bii_ditaille%=CARD{bii_donneesimagecpt%+2}/2+6
+    ENDIF
+    aff
+  ENDIF
+RETURN
+m:
+> PROCEDURE makecodeascii ! retour code$
+  IF code3%=0
+    code$="AFFICHER     "+code0$
+  ENDIF
+  IF code3%=1
+    code$="AFFICHER      A "
+  ENDIF
+  IF code3%=2
+    code$="PAUSE        "+code0$
+  ENDIF
+  IF code3%=3
+    code$="PAUSE         A "
+  ENDIF
+  IF code3%=4
+    code$="ALEA "+code1$+"<=A<="+code0$
+  ENDIF
+  IF code3%=5
+    code$="SI A=0 ALLER "+code0$
+  ENDIF
+  IF code3%=6
+    code$="ALLER        "+code0$
+  ENDIF
+  IF code3%=7
+    code$="FIN             "
+  ENDIF
+  IF code3%=8
+    code$="RIEN            "
+  ENDIF
+  IF code3%=9
+    code$="SON          "+code0$
+  ENDIF
+  IF code3%=255
+    code$="                "
+  ENDIF
+RETURN
+> PROCEDURE majiff
+  relache
+  IF bii_nom$<>""
+    FILESELECT chemin$+"images\*.Pc1","",n$
+    a$=SPACE$(32500)
+    BLOAD n$,V:a$
+    buf$=SPACE$(32000)
+    reg%(8)=V:a$+34
+    reg%(9)=V:buf$
+    RCALL V:iff$,reg%()
+    majbii
+  ENDIF
+RETURN
+> PROCEDURE movebox
+RETURN
+> PROCEDURE majpi1
+RETURN
+> PROCEDURE mouseonoff
+  affsouris!=NOT affsouris!
+  aff
+RETURN
+> PROCEDURE majbii !buf$ contient l'image
+  COLOR 15
+  l%=CARD{V:bii_entete$+4}
+  h%=CARD{V:bii_entete$+6}
+  DO
+    MOUSE x%,y%,k%
+    SLPOKE 1102,virtuel%
+    SPUT buf$
+    BOX x%,y%,x%+l%-1,y%+h%-1
+    SLPOKE 1102,XBIOS(2)
+    affvirtuel
+    EXIT IF k%<>0
+  LOOP
+  SLPOKE 1102,V:buf$
+  GET x%,y%,x%+l%-1,y%+h%-1,a$  !bii_donneesimage$
+  BMOVE V:a$,bii_donneesimage%,LEN(a$)
+  ' ''''''''  bii_ditaille=LEN(a$)
+  SLPOKE 1102,XBIOS(2)
+  bii_remap$=SPACE$(32)
+  FOR i%=0 TO 15
+    CARD{V:bii_remap$+i%*2}=i%
+  NEXT i%
+  aff
+RETURN
+> PROCEDURE majetape
+  IF bii_nom$<>""
+    FILESELECT chemin$+"images\*.???","",n$
+    IF n$<>""
+      chargeimage
+      ecran$=buf$
+      adranimstat(animstatcour%)
+      largeur%=CARD{adr%+4}
+      hauteur%=CARD{adr%+6}
+      '
+      HIDEM
+      COLOR 15
+      GRAPHMODE 3
+      '
+      ecran$=buf$
+      REPEAT
+        DO
+          BMOVE V:ecran$,virtuel%,32000
+          MOUSE x%,y%,k%
+          SLPOKE 1102,virtuel%
+          BOX x%,y%,x%+largeur%-1,y%+hauteur%-1
+          SLPOKE 1102,XBIOS(2)
+          BMOVE virtuel%,XBIOS(2),32000
+          EXIT IF k%<>0
+        LOOP
+        IF k%=1
+          SLPOKE 1102,virtuel%
+          BOX x%,y%,x%+largeur%-1,y%+hauteur%-1
+          GET x%,y%,x%+largeur%-1,y%+hauteur%-1,a$
+          SLPOKE 1102,XBIOS(2)
+          '   CLS
+          '   PUT 0,0,a$
+          '  REPEAT
+          ' UNTIL MOUSEK=0
+          '   bloc$=bloc$+a$
+        ENDIF
+      UNTIL k%=1
+      ' a$=motif
+      '
+      t%=CARD{adr%+4}*CARD{adr%+6}/2
+      offset%=CARD{adr%+8}
+      offset%=offset%+t%*animstatetapecour%
+      BMOVE V:a$+6,bii_donneesimage%+offset%+6,t%
+      relache
+    ENDIF
+  ENDIF
+  SHOWM
+  GRAPHMODE 1
+  affanim
+RETURN
+> PROCEDURE transvga(x1%,y1%,x2%,y2%,adr%)
+  LOCAL i%,nbl%,l%,adrvga%
+  adrvga%=vga%+y1%*320
+  nbl%=y2%-y1%+1
+  l%=x2%-x1%+1
+  FOR i%=1 TO nbl%
+    BMOVE adrvga%+x1%,adr%,l%
+    adr%=adr%+l%
+    adrvga%=adrvga%+320
+  NEXT i%
+RETURN
+> PROCEDURE makebii !BUF$ CONTIENT L'IMAGE
+  bii_init
+  ecran$=buf$
+  buf$=""
+  couper2
+  CLS
+  PUT 0,0,bloc$
+  '
+  BMOVE V:bloc$,bii_donneesimage%,LEN(bloc$)
+  bii_ditaille%=LEN(bloc$)
+  '
+  transvga(x1%+offsetx%,y1%+offsety%,x2%+offsetx%,y2%+offsety%,bii_donneesimagevga%)
+  bii_divgataille%=(x2%-x1%+1)*(y2%-y1%+1)
+  '
+  CARD{V:bii_entete$+4}=CARD{V:bloc$}+1
+  CARD{V:bii_entete$+6}=CARD{V:bloc$+2}+1
+  '
+  ALERT 0,"|  EXTERIEUR OU INTERIEUR   |",0,"EXT|INT",a%
+  CARD{V:bii_entete$+2}=a%
+  '
+  REPEAT
+    INPUT "numero ";n%
+  UNTIL n%<1000 AND n%>99
+  bii_nom$="DYNO"+STR$(n%)+".BII"
+  '
+  CARD{V:bii_entete$+8}=0
+  CARD{V:bii_entete$+10}=0
+  CARD{V:bii_entete$+12}=0
+  CARD{V:bii_entete$+14}=0
+  CARD{V:bii_entete$+16}=0
+  CARD{V:bii_entete$+18}=0
+  CARD{V:bii_entete$+20}=0
+  CARD{V:bii_entete$+22}=0
+  aff
+RETURN
+> PROCEDURE make_dc
+  LOCAL i%
+  IF n$<>""
+    OPEN "i",#1,n$
+    taille%=LOF(#1)
+    a$=SPACE$(taille%)
+    BGET #1,VARPTR(a$),taille%
+    CLOSE #1
+    n2$=n$+".dc"
+    n2$=LEFT$(n2$,INSTR(n2$,"."))+"dc"
+    OPEN "o",#1,n2$
+    l$="dc.w "
+    FOR i%=0 TO taille%-1 STEP 2
+      l$=l$+"$"+HEX$(DPEEK(i%+VARPTR(a$)))+","
+      IF LEN(l$)>60
+        l$=LEFT$(l$,LEN(l$)-1)
+        PRINT #1,l$
+        PRINT l$
+        l$="dc.w "
+      ENDIF
+    NEXT i%
+    IF l$<>"dc.w "
+      l$=LEFT$(l$,LEN(l$)-1)
+      PRINT #1,l$
+      PRINT l$
+    ENDIF
+    CLOSE #1
+  ENDIF
+RETURN
+> PROCEDURE makefinalbii
+  IF ecran16!
+    BMOVE bii_donneesimage%+6,buffer%,bii_ditaille%-6
+    LET remap2$=SPACE$(32)
+    a%=V:remap2$
+    FOR i%=0 TO 15
+      CARD{a%+CARD{V:bii_remap$+i%*2}*2}=i%
+    NEXT i%
+    LET remap$=SPACE$(2000)
+    BLOAD chemin$+"makedyno\remap_b2.prg",V:remap$
+    relog(V:remap$)
+    reg%(8)=buffer%
+    reg%(9)=reg%(8)
+    reg%(0)=(bii_ditaille%-6)/8
+    reg%(10)=V:remap2$
+    RCALL V:remap$,reg%()
+    '
+    reg%(0)=bii_ditaille%-6
+    reg%(8)=buffer%
+    reg%(9)=bii_donneesimagecpt%+2 !V:bidon$+2
+    RCALL V:cpti$,reg%()
+    g%=INT(((bii_ditaille%-6-reg%(0))/(bii_ditaille%-6))*10000)/100
+    TEXT 0,46,STR$((bii_ditaille%-6))+"  "+STR$(reg%(0))+"  "+STR$(g%)+"%"
+    PAUSE 5
+    longueur%=((reg%(0)+1) AND &HFFFE)+2
+    bii_dicpttaille%=longueur%
+    CARD{bii_donneesimagecpt%}=longueur%
+  ENDIF
+  IF ecranvga!
+    '
+    reg%(0)=bii_divgataille%
+    reg%(8)=bii_donneesimagevga%
+    reg%(9)=bii_donneesimagecpt%+2
+    RCALL V:makepcx$,reg%()
+    g%=INT(((bii_divgataille%-6-reg%(0))/(bii_divgataille%-6))*10000)/100
+    TEXT 0,46,STR$((bii_divgataille%-6))+"  "+STR$(reg%(0))+"  "+STR$(g%)+"%"
+    PAUSE 5
+    longueur%=((reg%(0)+1) AND &HFFFE)+2
+    bii_dicpttaille%=longueur%
+    CARD{bii_donneesimagecpt%}=longueur%
+  ENDIF
+  '
+  '
+  ' structure du fichier final:
+  ' entete+chforme+premierplan+animstat+animdyn+remap+sequence1+sequence2+...+image
+  '
+  '
+  IF LEN(bii_changementforme$)=0
+    CARD{V:bii_entete$+10}=0
+  ELSE
+    CARD{V:bii_entete$+10}=LEN(bii_entete$)
+  ENDIF
+  '
+  IF LEN(bii_premierplan$)=0
+    CARD{V:bii_entete$+12}=0
+  ELSE
+    CARD{V:bii_entete$+12}=LEN(bii_entete$)+LEN(bii_changementforme$)
+  ENDIF
+  '
+  IF LEN(bii_animstatique$)=0
+    CARD{V:bii_entete$+14}=0
+  ELSE
+    CARD{V:bii_entete$+14}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)
+  ENDIF
+  '
+  IF LEN(bii_animdyn$)=0
+    CARD{V:bii_entete$+16}=0
+  ELSE
+    CARD{V:bii_entete$+16}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)
+  ENDIF
+  '
+  IF LEN(bii_remap$)=0
+    CARD{V:bii_entete$+18}=0
+  ELSE
+    CARD{V:bii_entete$+18}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)
+  ENDIF
+  '
+  IF LEN(bii_sequence1$)=0
+    CARD{V:bii_entete$+20}=0
+  ELSE
+    CARD{V:bii_entete$+20}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)
+  ENDIF
+  '
+  IF LEN(bii_sequence2$)=0
+    CARD{V:bii_entete$+22}=0
+  ELSE
+    CARD{V:bii_entete$+22}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)+LEN(bii_sequence1$)
+  ENDIF
+  '
+  IF bii_dicpttaille%=0
+    CARD{V:bii_entete$+8}=0
+  ELSE
+    CARD{V:bii_entete$+8}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)+LEN(bii_sequence1$)+LEN(bii_sequence2$)
+  ENDIF
+  '
+  CARD{V:bii_entete$+24}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)+LEN(bii_sequence1$)+LEN(bii_sequence2$)+bii_dicpttaille%
+  '
+  buffertaille%=0
+  addbuffer(bii_entete$)
+  addbuffer(bii_changementforme$)
+  addbuffer(bii_premierplan$)
+  addbuffer(bii_animstatique$)
+  addbuffer(bii_animdyn$)
+  addbuffer(bii_remap$)
+  addbuffer(bii_sequence1$)
+  addbuffer(bii_sequence2$)
+  BMOVE bii_donneesimagecpt%,buffer%+buffertaille%,bii_dicpttaille%
+  buffertaille%=buffertaille%+bii_dicpttaille%
+  '
+  CARD{buffer%}=buffertaille%
+  aff
+RETURN
+> PROCEDURE makefinalbii2
+  BMOVE bii_di_noremap%+6,buffer%,bii_di_notaille%-6
+  reg%(0)=bii_di_notaille%-6
+  reg%(8)=buffer%
+  reg%(9)=bii_donneesimagecpt%+2
+  RCALL V:cpti$,reg%()
+  g%=INT(((bii_di_notaille%-6-reg%(0))/(bii_di_notaille%-6))*10000)/100
+  TEXT 0,46,STR$((bii_di_notaille%-6))+"  "+STR$(reg%(0))+"  "+STR$(g%)+"%"
+  PAUSE 5
+  longueur%=((reg%(0)+1) AND &HFFFE)+2
+  CARD{bii_donneesimagecpt%}=longueur%
+  '
+  '
+  ' structure du fichier final:
+  ' entete+chforme+premierplan+animstat+animdyn+remap+sequence1+sequence2+...+image
+  '
+  '
+  IF LEN(bii_changementforme$)=0
+    CARD{V:bii_entete$+10}=0
+  ELSE
+    CARD{V:bii_entete$+10}=LEN(bii_entete$)
+  ENDIF
+  '
+  IF LEN(bii_premierplan$)=0
+    CARD{V:bii_entete$+12}=0
+  ELSE
+    CARD{V:bii_entete$+12}=LEN(bii_entete$)+LEN(bii_changementforme$)
+  ENDIF
+  '
+  IF LEN(bii_animstatique$)=0
+    CARD{V:bii_entete$+14}=0
+  ELSE
+    CARD{V:bii_entete$+14}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)
+  ENDIF
+  '
+  IF LEN(bii_animdyn$)=0
+    CARD{V:bii_entete$+16}=0
+  ELSE
+    CARD{V:bii_entete$+16}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)
+  ENDIF
+  '
+  IF LEN(bii_remap$)=0
+    CARD{V:bii_entete$+18}=0
+  ELSE
+    CARD{V:bii_entete$+18}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)
+  ENDIF
+  '
+  IF LEN(bii_sequence1$)=0
+    CARD{V:bii_entete$+20}=0
+  ELSE
+    CARD{V:bii_entete$+20}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)
+  ENDIF
+  '
+  IF LEN(bii_sequence2$)=0
+    CARD{V:bii_entete$+22}=0
+  ELSE
+    CARD{V:bii_entete$+22}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)+LEN(bii_sequence1$)
+  ENDIF
+  '
+  IF bii_dicpttaille%=0
+    CARD{V:bii_entete$+8}=0
+  ELSE
+    CARD{V:bii_entete$+8}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)+LEN(bii_sequence1$)+LEN(bii_sequence2$)
+  ENDIF
+  '
+  CARD{V:bii_entete$+24}=LEN(bii_entete$)+LEN(bii_changementforme$)+LEN(bii_premierplan$)+LEN(bii_animstatique$)+LEN(bii_animdyn$)+LEN(bii_remap$)+LEN(bii_sequence1$)+LEN(bii_sequence2$)+bii_dicpttaille%
+  '
+  buffertaille%=0
+  addbuffer(bii_entete$)
+  addbuffer(bii_changementforme$)
+  addbuffer(bii_premierplan$)
+  addbuffer(bii_animstatique$)
+  addbuffer(bii_animdyn$)
+  addbuffer(bii_remap$)
+  addbuffer(bii_sequence1$)
+  addbuffer(bii_sequence2$)
+  BMOVE bii_donneesimagecpt%,buffer%+buffertaille%,bii_dicpttaille%
+  buffertaille%=buffertaille%+bii_dicpttaille%
+  '
+  CARD{buffer%}=buffertaille%
+  aff
+RETURN
+PROCEDURE makesour
+  IF bii_animstatique$<>""
+    nb%=CARD{V:bii_animstatique$}
+    biioffset%=2
+    FOR i%=1 TO nb%
+      offset%=CARD{V:bii_animstatique$+8+biioffset%}
+      nbetape%=CARD{V:bii_animstatique$+10+biioffset%}
+      createsouris(offset%,nbetape%)
+      n$=chemin$+"souris"+STR$(i%-1)
+      BSAVE n$,V:makesour$,LEN(makesour$)
+      make_dc
+      biioffset%=biioffset%+16
+    NEXT i%
+  ENDIF
+  aff
+RETURN
+> PROCEDURE createsouris(offset%,nbetape%)
+  LOCAL i%,adr%,z%
+  makesour$=MKI$(nbetape%) ! nombre d'etapes
+  adr%=bii_donneesimage%+offset%+6
+  FOR z%=1 TO nbetape%
+    FOR i%=1 TO 16
+      a%=CARD{adr%}
+      b%=CARD{adr%+2}
+      c%=CARD{adr%+4}
+      d%=CARD{adr%+6}
+      m%=((a% OR b%) OR (c% OR d%))
+      makesour$=makesour$+MKI$(m%)+MKI$(a%)+MKI$(b%)+MKI$(c%)+MKI$(d%)
+      adr%=adr%+8
+    NEXT i%
+  NEXT z%
+RETURN
+n:
+> PROCEDURE numberonoff
+  affnom!=NOT affnom!
+  aff
+RETURN
+p:
+> PROCEDURE pi1bii
+  FILESELECT chemin$+"*.PI1","",n$
+  a$=SPACE$(32500)
+  BLOAD n$,V:a$
+  buf$=SPACE$(32000)
+  BMOVE V:a$+34,V:buf$,32000
+  makebii
+RETURN
+> PROCEDURE pause(a%)
+  t%=TIMER+4*4*a%
+  REPEAT
+    IF MOUSEK<>0
+      exitanimexec!=-1
+    ENDIF
+  UNTIL TIMER>t% OR exitanimexec!
+RETURN
+> PROCEDURE plusmoinsstat
+  IF bii_animstatique$<>""
+    animstatetapecour%=0
+    IF k%=1
+      IF animstatcour%<CARD{V:bii_animstatique$}-1
+        INC animstatcour%
+        affanim
+      ENDIF
+    ENDIF
+    IF k%=2
+      IF animstatcour%>0
+        DEC animstatcour%
+        affanim
+      ENDIF
+    ENDIF
+  ENDIF
+RETURN
+> PROCEDURE plusmoinsetape
+  IF bii_animstatique$<>""
+    adranimstat(animstatcour%)
+    IF k%=1
+      IF animstatetapecour%<CARD{adr%+10}-1
+        INC animstatetapecour%
+        affanim
+      ENDIF
+    ENDIF
+    IF k%=2
+      IF animstatetapecour%>0
+        DEC animstatetapecour%
+        affanim
+      ENDIF
+    ENDIF
+  ENDIF
+RETURN
+q:
+> PROCEDURE quit
+  sortie!=TRUE
+  IF modif!=TRUE
+    ALERT 0,"  LE DOCUMENT A ETE MODIFIE.  |    VOULEZ-VOUS VRAIMENT   |    QUITTER ET PERDRE LES  |       MODIFICATION ?|",2," OUI | NON ",a%
+    IF a%=2
+      sortie!=FALSE
+    ENDIF
+  ENDIF
+RETURN
+r:
+> PROCEDURE remplacecode(l%,code%)
+  IF l%=LEN(animprog$)/4-1
+    insertcode(l%,code%)
+    INC lignecour%
+  ELSE
+    LONG{V:animprog$+l%*4}=code%
+  ENDIF
+RETURN
+> PROCEDURE relache
+  REPEAT
+  UNTIL MOUSEK=0
+RETURN
+> PROCEDURE relog(adrprog%)
+  adr%=adrprog%
+  adr2%=adrprog%+28
+  ttext%=LPEEK(adr%+2)
+  tdata%=LPEEK(adr%+6)
+  tbss%=LPEEK(adr%+10)
+  debut%=ttext%+tdata%+28+adr%
+  abs1%=LPEEK(debut%)
+  LPOKE abs1%+28+adr%,LPEEK(abs1%+28+adr%)+adr2%
+  debut%=debut%+4
+  DO
+    a%=PEEK(debut%)
+    EXIT IF a%=0
+    INC debut%
+    IF a%=1
+      abs1%=abs1%+254!    a%=256
+    ENDIF
+    IF a%<>1
+      abs1%=abs1%+a%
+    ENDIF
+    IF a%<>1
+      LPOKE abs1%+28+adr%,LPEEK(abs1%+28+adr%)+adr2%
+    ENDIF
+  LOOP
+RETURN
+s:
+> PROCEDURE specialonoff
+  special!=NOT special!
+  aff
+RETURN
+> PROCEDURE savebii
+  IF bii_nom$<>""
+    IF ecranvga!
+      bii_nom$=LEFT$(bii_nom$,LEN(bii_nom$)-3)+"256"
+    ELSE
+      bii_nom$=LEFT$(bii_nom$,LEN(bii_nom$)-3)+"BII"
+    ENDIF
+    IF bii_changementforme$=""
+      ALERT 1,"  IL FAUT AU MOINS   |  UNE ZONE DE DIRECTION ||",0,"OK",a%
+    ELSE
+      DEFMOUSE 2
+      makefinalbii
+      BSAVE chemin$+"newbii\"+bii_nom$,buffer%,buffertaille%
+      modif!=0
+      DEFMOUSE 0
+    ENDIF
+  ENDIF
+RETURN
+> PROCEDURE select ! retour: no=numero de la zone (ou -1)
+  relache
+  LOCAL x1%,y1%,x2%,y2%,x%,y%,k%,nb%,i%
+  DEFMOUSE 3
+  DO
+    MOUSE x%,y%,k%
+    EXIT IF k%<>0
+  LOOP
+  y%=y%-yorg%
+  nb%=CARD{V:bii_changementforme$}
+  no%=-1
+  FOR i%=0 TO nb%-1
+    x1%=CARD{i%*14+2+V:bii_changementforme$}
+    y1%=CARD{i%*14+4+V:bii_changementforme$}
+    x2%=CARD{i%*14+6+V:bii_changementforme$}
+    y2%=CARD{i%*14+8+V:bii_changementforme$}
+    IF x%>=x1% AND x%<=x2% AND y%>=y1% AND y%<=y2%
+      no%=i%
+    ENDIF
+  NEXT i%
+  DEFMOUSE 0
+RETURN
+> PROCEDURE supbox
+  relache
+  IF bii_changementforme$<>""
+    select
+    IF no%<>-1
+      PRINT no%
+      l%=LEN(bii_changementforme$)-2-14*no%-14
+      IF l%<>0
+        BMOVE V:bii_changementforme$+2+14+no%*14,V:bii_changementforme$+2+no%*14,l%
+      ENDIF
+      bii_changementforme$=LEFT$(bii_changementforme$,LEN(bii_changementforme$)-14)
+      CARD{V:bii_changementforme$}=CARD{V:bii_changementforme$}-1
+      IF CARD{V:bii_changementforme$}=0
+        bii_changementforme$=""
+      ENDIF
+    ENDIF
+    aff
+    DEFMOUSE 0
+  ENDIF
+RETURN
+> PROCEDURE supstat
+  IF CARD{V:bii_animstatique$}<>0
+    ALERT 0,"  SUPPRIMER ANIMATION  |COURANTE|",2,"OUI|NON",r%
+    IF r%=1
+      adranimstat(animstatcour%)
+      offset%=CARD{adr%+8}
+      taille%=CARD{adr%+4}*CARD{adr%+6}/2
+      taille%=taille%*CARD{adr%+10}
+      @subdi(offset%,taille%)
+      @suboffset(offset%,taille%)
+      supstatblocstat(animstatcour%)
+      CARD{V:bii_animstatique$}=CARD{V:bii_animstatique$}-1
+      animstatcour%=MIN(animstatcour%,CARD{V:bii_animstatique$}-1)
+      affanim
+    ENDIF
+  ENDIF
+RETURN
+> PROCEDURE supstatblocstat(no%)
+  adranimstat(no%)
+  t%=16+4*CARD{adr%+14}
+  tg%=adr%-V:bii_animstatique$
+  td%=LEN(bii_animstatique$)-tg%-t%
+  IF td%<>0
+    bii_animstatique$=LEFT$(bii_animstatique$,tg%)+RIGHT$(bii_animstatique$,LEN(bii_animstatique$)-tg%-t%)
+  ELSE
+    bii_animstatique$=LEFT$(bii_animstatique$,tg%)
+  ENDIF
+RETURN
+> PROCEDURE subdi(offset%,taille%)
+  BMOVE bii_donneesimage%+offset%+taille%+6,bii_donneesimage%+offset%+6,17000*4-offset%-taille%
+  PRINT
+  PRINT
+  PRINT bii_ditaille%
+  bii_ditaille%=bii_ditaille%-taille%
+  PRINT bii_ditaille%
+  ~INP(2)
+RETURN
+> PROCEDURE suboffset(offset%,taille%)
+  LOCAL i%,nb%,adr%,offset2%
+  adr%=V:bii_animstatique$
+  nb%=CARD{adr%}
+  adr%=adr%+2
+  FOR i%=1 TO nb%
+    offset2%=CARD{adr%+8}
+    IF offset2%>offset%
+      offset2%=offset2%-taille%
+      CARD{adr%+8}=offset2%
+    ENDIF
+    adr%=adr%+16+4*CARD{adr%+14}
+  NEXT i%
+RETURN
+t:
+> PROCEDURE taillestat !calcule la taille du bloc statique (retour: taille)
+  LOCAL i%,offset%,nb%,taille0%
+  offset%=CARD{buffer%+14}
+  IF offset%=0
+    taille%=0
+  ELSE
+    taille%=2
+    adr%=buffer%+offset%
+    nb%=CARD{adr%}
+    adr%=adr%+2
+    FOR i%=0 TO nb%-1
+      taille0%=16+CARD{adr%+14}*4
+      adr%=adr%+taille0%
+      taille%=taille%+taille0%
+    NEXT i%
+  ENDIF
+RETURN
+u:
+> PROCEDURE unepasse
+  col1%=RND*16
+  DO
+    col2%=RND*16
+    EXIT IF col1%<>col2%
+  LOOP
+  reg%(1)=col1%
+  reg%(2)=col2%
+  BMOVE bii_di_noremap%,buffer%,bii_di_notaille%
+  reg%(8)=buffer%+6
+  reg%(0)=(bii_di_notaille%-6)/8
+  RCALL V:echcol$,reg%()
+  '
+  reg%(0)=(bii_di_notaille%-6)
+  reg%(8)=buffer%+6
+  reg%(9)=buffer2%
+  RCALL V:cpti$,reg%()
+  IF reg%(0)<=bii_dicpttaille%
+    BMOVE buffer%,bii_di_noremap%,bii_di_notaille%
+    BMOVE buffer2%,bii_donneesimagecpt%,reg%(0)
+    bii_dicpttaille%=reg%(0)
+    a%=CARD{V:bii_remap$+col1%*2}
+    CARD{V:bii_remap$+col1%*2}=CARD{V:bii_remap$+col2%*2}
+    CARD{V:bii_remap$+col2%*2}=a%
+    PRINT reg%(0)
+  ENDIF
+RETURN
+'
+'
+> PROCEDURE lirelogique(adr%,firstsec%,nbsec%)
+  LOCAL i%
+  FOR i%=0 TO nbsec%-1
+    logique(firstsec%+i%)
+    PRINT XBIOS(8,L:adr%+512*i%,L:f%,lecteur%,secteur%,piste%,face%,1)
+    PRINT "s:";secteur%;"p:";piste%;"f:";face%
+  NEXT i%
+RETURN
+> PROCEDURE logique(secteurlog%) !retour: face, piste, secteur
+  piste%=secteurlog%/20
+  face%=(secteurlog%/10) AND 1
+  secteur%=secteurlog%-piste%*20-face%*10+1
+RETURN
+'
+'
+'
+> PROCEDURE vga
+  ' FILESELECT "\*.lbm","",n$
+  BLOAD "e:\bat_ii\images\vga\b2_200x.lbm",adr%
+  ' FOR i=2000 TO 50000
+  '  a=BYTE{i+adr}
+  '  PRINT i,a,CHR$(a)
+  '  ~INP(2)
+  ' NEXT i
+  a$=SPACE$(32000)
+  BMOVE adr%,V:a$,32000
+  body%=INSTR(a$,"BODY")-1
+  ' EDIT
+  reg%(8)=adr%+body%+8
+  reg%(9)=adr2%
+  RCALL V:prg$,reg%()
+  reg%(8)=adr2%
+  reg%(9)=XBIOS(2)
+  reg%(10)=V:tablecol$
+  RCALL V:prg256to16$,reg%()
+RETURN

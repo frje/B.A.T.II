@@ -1,0 +1,17 @@
+'
+'       DIAGNOSTIQUE
+'
+DEFINT "a-z"
+buf$=SPACE$(32000)
+PRINT XBIOS(8,L:V:buf$,L:f%,0,1,0,0,9)
+FOR i%=0 TO 100
+  PRINT ">>>";i%;"<<<"
+  PRINT "memtaillebloc:",LONG{V:buf$+i%*16+0}
+  PRINT "memadrbloc:",LONG{V:buf$+i%*16+4}
+  PRINT "memetatbloc:",CARD{V:buf$+i%*16+8}
+  PRINT "memagebloc:",LONG{V:buf$+i%*16+10}
+  PRINT "memtypebloc:",CARD{V:buf$+i%*16+14}
+  PRINT
+  PRINT
+  ~INP(2)
+NEXT i%

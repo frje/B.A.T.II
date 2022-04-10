@@ -1,0 +1,28 @@
+FILESELECT "\*.*","",n$
+IF n$<>""
+  OPEN "i",#1,n$
+  taille%=LOF(#1)
+  a$=SPACE$(taille%)
+  BGET #1,VARPTR(a$),taille%
+  CLOSE #1
+  n2$=n$+".dc"
+  n2$=LEFT$(n2$,RINSTR(n2$,"."))+"dc"
+  PRINT n2$
+  OPEN "o",#1,n2$
+  l$="dc.w "
+  FOR i%=0 TO taille%-1 STEP 2
+    l$=l$+"$"+HEX$(DPEEK(i%+VARPTR(a$)))+","
+    IF LEN(l$)>60
+      l$=LEFT$(l$,LEN(l$)-1)
+      PRINT #1,l$
+      PRINT l$
+      l$="dc.w "
+    ENDIF
+  NEXT i%
+  IF l$<>"dc.w "
+    l$=LEFT$(l$,LEN(l$)-1)
+    PRINT #1,l$
+    PRINT l$
+  ENDIF
+  CLOSE #1
+ENDIF

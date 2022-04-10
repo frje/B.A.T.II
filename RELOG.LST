@@ -1,0 +1,81 @@
+'
+' MASTER  V0.1
+'
+' Createur de Masters pour B.A.T II
+'
+'
+DEFINT "a-z"
+DIM buf%(200000)
+adrbuf%=V:buf%(0)
+chemin$="e:\bat_ii\"
+CLS
+BLOAD chemin$+"batii.prg",adrbuf%
+relog(adrbuf%)
+ecriresecteurs(adrbuf%+28,tailleprog%)
+boot(tailleprog%)
+> PROCEDURE boot(taille%)
+  prg$=SPACE$(1000)
+  boot$=SPACE$(1000)
+  n$=chemin$+"master\boot_b2.prg"
+  BLOAD n$,V:prg$
+  CARD{V:prg$+28+2}=INT((taille%+512-1)/512)
+  PRINT "placez la disquette et pressez une touche"
+  ~INP(2)
+  DPOKE V:boot$,&H6002
+  FOR i%=0 TO 512-32 STEP 2
+    DPOKE V:boot$+&H2+2+i%,DPEEK(V:prg$+28+i%)
+  NEXT i%
+  FOR i%=0 TO 508 STEP 2
+    s%=s%+DPEEK(V:boot$+i%)
+  NEXT i%
+  s%=(&H1234-s%) AND &HFFFF
+  DPOKE V:boot$+510,s%
+  PRINT XBIOS(9,L:V:boot$,L:f%,0,1,0,0,1)
+RETURN
+> PROCEDURE format
+  buf$=SPACE$(1000)
+  DO
+    etat%=0
+    FOR piste%=79 TO 0 STEP -1
+      FOR face%=0 TO 1
+        IF etat%=0
+          etat%=XBIOS(10,L:V:buf$,L:f%,0,10,piste%,face%,1,L:&H87654321,&HF6F6)
+          PRINT AT(1,1);"piste: ";piste%;"  face: ";face%
+        ENDIF
+      NEXT face%
+    NEXT piste%
+    EXIT IF etat%=0
+    PRINT "disquette defectueuse"
+    PRINT "inserez une nouvelle disquette"
+    PRINT "et pressez une touche"
+    ~INP(2)
+  LOOP
+RETURN
+> PROCEDURE relog(adrprog%) !retour: tailleprog=taille du programme (text+data)
+  adr%=adrprog%
+  adr2%=1024
+  ttext%=LPEEK(adr%+2)
+  tdata%=LPEEK(adr%+6)
+  tbss%=LPEEK(adr%+10)
+  tailleprog%=ttext%+tdata%
+  debut%=ttext%+tdata%+28+adr%
+  abs1%=LPEEK(debut%)
+  LPOKE abs1%+28+adr%,LPEEK(abs1%+28+adr%)+adr2%
+  debut%=debut%+4
+  DO
+    a%=PEEK(debut%)
+    PRINT a%
+    '  ~INP(2)
+    EXIT IF a%=0
+    INC debut%
+    IF a%=1
+      abs1%=abs1%+254!    a%=256
+    ENDIF
+    IF a%<>1
+      abs1%=abs1%+a%
+    ENDIF
+    IF a%<>1
+      LPOKE abs1%+28+adr%,LPEEK(abs1%+28+adr%)+adr2%
+    ENDIF
+  LOOP
+RETURN

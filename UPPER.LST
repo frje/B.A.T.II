@@ -1,0 +1,9 @@
+FILESELECT "\*.*","",n$
+OPEN "i",#1,n$
+OPEN "o",#2,"upper.asc"
+WHILE NOT EOF(#1)
+  LINE INPUT #1,a$
+  PRINT #2,UPPER$(a$)
+WEND
+CLOSE #1
+CLOSE #2
